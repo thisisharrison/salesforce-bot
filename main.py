@@ -3,13 +3,18 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from time import sleep
-from secrets import pw
+# from secrets import pw
 import pdb
 
 class SFBot:
     def __init__(self, username, password):
-        self.driver = webdriver.Chrome('/Users/harrisonlau/chromedriver')
+        """ PERSONAL MAC """
+        # self.driver = webdriver.Chrome('/Users/harrisonlau/chromedriver')
+        
+        """ OFFICE WINDOWS """
+        self.driver = webdriver.Chrome()
         self.driver.implicitly_wait(5)
+        
         self.username = username
         
         self.driver.get("https://staging-eu01-lululemon.demandware.net/on/demandware.store/Sites-Site/default/ViewLogin-StartAM")
@@ -37,13 +42,32 @@ class SFBot:
                                    """, sites)
         
         print("Logged in as: ", username)
+        
+        sleep(3)
 
     def navProducts(self):
-        self.driver.find_element(By.CSS_SELECTOR, ".merchant-tools-link .icon-menu-menu_down_arrow").click()
         
-        self.driver.find_element(By.LINK_TEXT, "Products").click()
-              
-        sleep(5)
+        try: 
+            self.driver.find_element(By.CSS_SELECTOR, ".menu .merchant-tools-link > .menu-overview-link-icon").click()
+        
+            sleep(3)
+                  
+            self.driver.find_element_by_link_text('Products').click()
+        
+        except: 
+            
+            self.driver.find_element_by_link_text('Merchant Tools')\
+                .click()
+            
+            self.driver.find_element_by_link_text('Products and Catalogs')\
+                .click()
+            
+            self.driver.find_element_by_link_text('Products')\
+                .click()
+            
+            print("Alternative Navigation")
+        
+        sleep(3)
         
         self.driver.find_element_by_link_text('By ID')\
             .click()
@@ -97,83 +121,219 @@ class SFBot:
             
         print("Primary Categorized: %s > %s" % (products, categories))
             
-    def changeAttribute(self, products):
+    def changeAttribute(self, names):
         
-        string_products = ", ".join(products)
-        
-        self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")\
-            .send_keys(string_products)
-                       
-        self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
-            .click()
-        
-        # self.driver.find_element_by_xpath('//button[@value="All"]')\
-        #     .click()
+        try: 
+            while names:
+                
+                # Takes first pair, when finished pop(0)
+                pair = names[0]
+                print(pair)
+                
+                product = pair[0]
+                attribute = pair[1]
             
-        product = products[0]
+                search = self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")
+                search.send_keys(product)
+                               
+                self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
+                    .click()
+                
+                self.driver.find_element_by_link_text(product)\
+                    .click()
+                
+                # If Search Multiple Products (separate function)
+                # el = self.driver.find_element_by_xpath("//a[contains(text(),'{}')]".format(product))
+                # url = el.get_attribute('href')
+                # self.driver.switch_to.window(self.driver.window_handles[1])
+                # self.driver.get(url)
+                # print("Opened new Tab")
+                # self.driver.close()
+                # self.driver.switch_to.window(self.driver.window_handles[1])
+    
+                lang = self.driver.find_element_by_xpath('//select[@name="LocaleID"]')
+                
+                """ SELECT LANGUAGE """
+                self.driver.execute_script("""arguments[0].selectedIndex = "7"; 
+                                           arguments[0].onchange();""", lang)
         
-        el = self.driver.find_element_by_xpath("//a[contains(text(),'{}')]".format(product))
+                print("Language Selected")
         
-        url = el.get_attribute('href')
+                self.driver.find_element_by_xpath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/table[2]/tbody/tr/td[1]/table/tbody/tr[3]/td/table/tbody/tr/td[2]/p/a').click()
+                
+                print("Unlocked")
         
-        self.driver.switch_to.window(self.driver.window_handles[1])
-        self.driver.get(url)
-        print("Opened new Tab")
-
-        lang = self.driver.find_element_by_xpath('//select[@name="LocaleID"]')
-
-        self.driver.execute_script("""arguments[0].selectedIndex = "23"; arguments[0].onchange();""", lang)
-
-        print("Language Selected")
-
-        self.driver.find_element_by_xpath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/table[2]/tbody/tr/td[1]/table/tbody/tr[3]/td/table/tbody/tr/td[2]/p/a').click()
+                name = self.driver.find_element_by_xpath('//*[@id="Metaf070c9f07840c78a8b2edc1902_Container"]/input')
+                
+                name.clear()
+                
+                name.send_keys(attribute)
         
-        print("Unlocked")
+                self.driver.find_element_by_xpath("//button[contains(text(), 'Apply')]").click()
+                
+                print("Applied")
+                
+                self.driver.find_element_by_xpath('//*[@id="bm-breadcrumb"]/a[3]').click()
+                
+                done = names.pop(0)
+                
+                print("Remaining pairs: ", names)
+                
+        except:
+            
+            print('Error: Error Occurred')
+            
+            print('Error: Remaining Pairs: ', names)
+            
+            self.changeAttribute(names)
+            
 
-        name = self.driver.find_element_by_xpath('//*[@id="Metaf070c9f07840c78a8b2edc1902_Container"]/input')
-        name.clear()
-        name.send_keys('Align Super High-Rise Pant *26"')
-
-        self.driver.find_element_by_xpath("//button[contains(text(), 'Apply')]").click()
-        print("Applied")
-
-        self.driver.close()
-
-        self.driver.switch_to.window(self.driver.window_handles[1])
+        
 
 
     
+    def navPriceBook(self, priceBook):
+     
+        try: 
+            self.driver.find_element(By.CSS_SELECTOR, ".menu .merchant-tools-link > .menu-overview-link-icon").click()
+        
+            sleep(3)
+                  
+            self.driver.find_element(By.LINK_TEXT, "Price Books").click()
+        
+        except: 
+            
+            self.driver.find_element_by_link_text('Merchant Tools')\
+                .click()
+            
+            self.driver.find_element_by_link_text('Products and Catalogs')\
+                .click()
+            
+            self.driver.find_element_by_link_text('Price Books')\
+                .click()
+            
+            print("Alternative Navigation")
+         
+        self.driver.find_element_by_xpath('//button[@name="PageSize"]')\
+            .click()
+        
+        try: 
+        
+            self.driver.find_element(By.LINK_TEXT, priceBook).click()
+        
+        except:
+        
+            self.driver.find_element_by_xpath("//input[@name=\"SearchTerm\"]").send_keys(priceBook)
+            
+            self.driver.find_element_by_xpath("//button[@name=\"simpleSearch\"]").click()
+            
+            self.driver.find_element(By.LINK_TEXT, priceBook).click()
+            
+        self.driver.find_element(By.LINK_TEXT, "Price Definitions").click() 
+        
+        self.driver.find_element(By.CSS_SELECTOR, "td:nth-child(3) > .perm_not_disabled").click()
+        
     def deletePrice(self, skus):
-        self.driver.find_element(By.CSS_SELECTOR, ".merchant-tools-link .icon-menu-menu_down_arrow").click()
-        
-        self.driver.find_element(By.LINK_TEXT, "Price Books").click()
-        
+                    
+        search = self.driver.find_element_by_xpath("//input[@name=\"SearchTerm\"]")
+        search.clear()
+
         print("Price Book Page")
         
-        print("Searching: ",skus)
+        try: 
+            while skus:
+                
+                # Takes first sku, when finish, pop(0); Need a error handler for if no search result
+                sku = skus.pop(0)
         
-        print("Found: ",skus)
+                self.driver.find_element_by_xpath("//input[@name=\"SearchTerm\"]")\
+                    .send_keys(sku)
+                
+                self.driver.find_element_by_xpath('//button[@name=\"simpleSearch\"]')\
+                    .click()
+                    
+                print("Searching: ",sku)
+                
+                self.driver.find_element(By.LINK_TEXT, "Select All").click()
+                
+                print("Found: ",sku)
+                 
+                self.driver.find_element_by_xpath('//button[@id=\"deleteButton\"]')\
+                    .click()
+                
+                print("Deleting: ", sku)
+                
+                self.driver.find_element_by_xpath('//button[@name=\"deletePrices\"]')\
+                    .click()
+                
+                print("Deleted: ", sku)
+                
+                print(f"Remaining: {len(skus)} SKUs", skus)
+                
+                search = self.driver.find_element_by_xpath("//input[@name=\"SearchTerm\"]")
+                search.clear()
+            
+        except:
+               
+                print("Error: Error occurred")
+                print("Error: Remaining SKUs: ",skus)
+                
+                self.deletePrice(skus)
         
-        print("Deleting: ", skus)
-        
-        print("Deleted: ", skus)
-        
-        pass
 
-products = ["LW5CYWA",
-"LW5CWRA",
-"LW5BYKA"
+
+products = ["LW5CYWA","LW5CWRA","LW5BYKA"]
+priceBook = '66198-CHF-SALE'
+skus = ['113225555', 
+'113225558', 
+'113225559', 
 ]
+
+names = [
+    ['LW5CZWA', 'lululemon Align™ High-Rise Pant 26"'], 
+['LW5CYBS', 'Here to There High-Rise 7/8 Pant'], 
+['LM5A94S', 'ABC Commuter Pant 32"'], 
+['LM3CC8S', 'Down To The Wire Long Sleeve Shirt'], 
+['LW5CPPS', 'Here to There High-Rise 7/8 Pant'], 
+['LW5DDRA', 'Invigorate High-Rise Tight 24"'], 
+['LW5DE2A', 'lululemon Align™ Jogger'], 
+['LW5DDZA', 'lululemon Align™ High-Rise Pant 26"'], 
+['LW7BAJS', 'lululemon Align™ High-Rise Short 6"'], 
+['LW9CNTS', 'Fast and Free Run Hat'], 
+['LW5CR3A', 'lululemon Align™ Jogger'], 
+['LW5CQFS', 'Invigorate High-Rise Tight 25"'], 
+['LW8ABUT', 'Court Rival High-Rise Skirt 15"* Tall '], 
+['LW5CTES', 'lululemon Align™ High-Rise Pant 28"'], 
+['LW6BDRS', 'lululemon Align™ Jogger Crop'], 
+['LW6BGIS', 'lululemon Align™ High-Rise Crop 21"'], 
+['LU9A73S', 'The Reversible Mat 5mm'], 
+['prod9200026', 'lululemon Align™ Jogger Crop 23"'], 
+['LW2BIJS', 'Ebb to Street Bra *Light Support'], 
+['LW7ARIT', 'Hotty Hot High-Rise Short 4"* Lined '], 
+['LW7AY3S', 'Speed Up High-Rise Short 2.5"* Lined '], 
+['LW5CF9A', 'Train Times High-Rise Tight 7/8* Asia Fit '], 
+['LW5BJZS', 'Tightest Stuff High-Rise Tight 25"'], 
+['LW1BSXS', 'lululemon Align™ Tank'], 
+['prod9250073', 'Hotty Hot Short High-Rise Long 4"'], 
+['LW8A78R', 'Pace Rival Skirt (Regular) 13"'], 
+
+    ]
       
+
+
 my_bot = SFBot('hlau2@lululemon.com', pw)
 
-my_bot.navProducts()
-
-my_bot.changeAttribute(products)
-
+""" Assign Single Primary Category """
+# Tested: 
 # my_bot.setCategories('prod1410121', 'women-tops-tanks')
 
-# my_bot.deletePrice('113126055')
+""" Changing Multi Product Names """
+# Tested:
+# my_bot.navProducts()
+# my_bot.changeAttribute(names)
 
 
-
+""" Delete Multi Sale Prices """
+# Tested: 
+# my_bot.navPriceBook(priceBook)
+# my_bot.deletePrice(skus)
