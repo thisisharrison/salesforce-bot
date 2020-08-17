@@ -3,45 +3,60 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from time import sleep
-# from secrets import pw
+import csv 
+from secrets import pw
 import pdb
 
 class SFBot:
     def __init__(self, username, password):
         """ PERSONAL MAC """
-        # self.driver = webdriver.Chrome('/Users/harrisonlau/chromedriver')
+        self.driver = webdriver.Chrome('/Users/harrisonlau/chromedriver')
         
         """ OFFICE WINDOWS """
-        self.driver = webdriver.Chrome()
+        # self.driver = webdriver.Chrome()
         self.driver.implicitly_wait(5)
         
         self.username = username
+
+        self.password = password
         
         self.driver.get("https://staging-eu01-lululemon.demandware.net/on/demandware.store/Sites-Site/default/ViewLogin-StartAM")
         
         self.driver.find_element_by_xpath("//button[contains(text(), 'Log In')]")\
             .click()
         
-        self.driver.find_element_by_xpath("//input[@name=\"callback_0\"]")\
-            .send_keys(username)
+        self.login()
+
+    def login(self):
+
+        try:
         
-        self.driver.find_element_by_xpath('//input[@type="submit"]')\
-            .click()
+            self.driver.find_element_by_xpath("//input[@name=\"callback_0\"]")\
+                .send_keys(self.username)
+            
+            self.driver.find_element_by_xpath('//input[@type="submit"]')\
+                .click()
+            
+            self.driver.find_element_by_xpath("//input[@name=\"callback_1\"]")\
+                .send_keys(self.password)
+            
+            self.driver.find_element_by_xpath('//input[@type="submit"]')\
+                .click()
         
-        self.driver.find_element_by_xpath("//input[@name=\"callback_1\"]")\
-            .send_keys(password)
-        
-        self.driver.find_element_by_xpath('//input[@type="submit"]')\
-            .click()
+        except:
+
+            print("Retry logging in")
+            self.login()
 
         """ Select Site """
+        # Select first (Japan) 
         sites = self.driver.find_element_by_xpath('//select[@id="SelectedSiteID"]')
         self.driver.execute_script("""
                                    arguments[0].selectedIndex = "1";
                                    arguments[0].onchange();
                                    """, sites)
         
-        print("Logged in as: ", username)
+        print("Logged in as: ", self.username)
         
         sleep(3)
 
@@ -188,10 +203,33 @@ class SFBot:
             self.changeAttribute(names)
             
 
+    def getCategoryMapping(self, filename):
+
+        pCats = {}
+        sCats = {}
+
+        with open (filename, newline = '') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader: 
+                master = row['master']
+                primary = row['primaryCategory']
+                secondary = [cat.strip() for cat in row['subCategories'].split(',')]
+
+                if primary in pCats.keys():
+                    pCats[primary].add(master)
+                else: 
+                    pCats[primary] = set([master])
+                
+                for sec in secondary:
+                    if sec in sCats.keys():
+                        sCats[sec].add(master)
+                    else:
+                        sCats[sec] = set([master])
+                    
+        print(pCats)
+        print(sCats)
         
 
-
-    
     def navPriceBook(self, priceBook):
      
         try: 
@@ -318,6 +356,9 @@ names = [
 ['LW8A78R', 'Pace Rival Skirt (Regular) 13"'], 
 
     ]
+
+prim_cat = {'primary': ['masters']}
+sub_cat = {'secondary': ['masters']}
       
 
 
@@ -325,7 +366,13 @@ my_bot = SFBot('hlau2@lululemon.com', pw)
 
 """ Assign Single Primary Category """
 # Tested: 
+# my_bot.navProducts()
 # my_bot.setCategories('prod1410121', 'women-tops-tanks')
+
+""" Assign Multi Categories """
+my_bot.getCategoryMapping('./csv/categories.csv')
+
+# my_bot.navProducts()
 
 """ Changing Multi Product Names """
 # Tested:

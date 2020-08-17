@@ -4,3 +4,4 @@ venv/
 .vscode/
 Pipfile
 Pipfile.lock
+csv/
