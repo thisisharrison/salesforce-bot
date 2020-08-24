@@ -2,10 +2,12 @@
 Bot to automate content management tasks:
 
   - [x] Assign Primary Category
-  - [ ] Assign Primary Category in Bulk
-  - [ ] Assign Sub Categories in Bulk
-  - [ ] Delete Pricing
+  - [x] Assign Primary Category in Bulk
+  - [x] Assign Sub Categories in Bulk
+  - [x] Delete Pricing in Bulk
+  - [x] Edit Products' Name in Bulk
   - [ ] Edit Product Attributes (Name, Description, Meta)
+  - [ ] Change Front Facing Color in Bulk
   
 ### Tech
 Bot uses a selenium, python and javascript.
