@@ -4,6 +4,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from time import sleep
 import csv 
+import itertools
 # from secrets import pw
 import pdb
 
@@ -53,9 +54,13 @@ class SFBot:
 
         """ Select Site """
         if self.site == 'JP':
-            idx = '1' 
+            idx = '1'
+        elif self.site == 'UK':
+            idx = '5'
         elif self.site == 'HK':
             idx = '5'
+        elif self.site == 'AU':
+            idx = '7'
 
         script = 'arguments[0].selectedIndex = {}; arguments[0].onchange();'.format(idx)
         
@@ -582,17 +587,267 @@ class SFBot:
                 print("Error: Remaining SKUs: ",skus)
                 
                 self.deletePrice(skus)
+    
+    def hreflang(self):
+        
+        try: 
+            
+            self.driver.find_element(By.CSS_SELECTOR, ".menu .merchant-tools-link > .menu-overview-link-icon").click()
+            
+            sleep(3)
+            
+            self.driver.find_element(By.LINK_TEXT, "Catalogs").click()
+        
+        except: 
+        
+            self.driver.find_element_by_link_text('Merchant Tools')\
+                .click()
+            
+            self.driver.find_element_by_link_text('Products and Catalogs')\
+                .click()
+            
+            self.driver.find_element_by_link_text('Catalogs')\
+                .click()
+            
+            print("Alternative Navigation")
+        
+        if self.site == 'JP':
+            nav = 'lululemon-jp-navigation' 
+        elif self.site == 'UK':
+            nav = 'lululemon-emea-navigation'
+        elif self.site == 'HK':
+            nav = 'lululemon-hk-navigation'
+        elif self.site == 'AU':
+            nav = 'lululemon-ausnz-navigation'
+        
+        self.driver.find_element_by_link_text(nav)\
+                .click()
+        
+        self.seo_filename = input("Enter filename -").strip() + ".csv"
+        
+        with open(self.seo_filename, "w", encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['ID','Hreflangtag', 'Edit link'])
+           
+        try:
+            self.driver.find_element_by_xpath('//button[@name=\"CategoryPageSize\"]')\
+                .click()
+        except:
+            raise
+            pass
+                
+        edit_script = """
+                table = document._getElementsByXPath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/form[2]/table/tbody/tr/td/table[1]');
+                links = table[0].querySelectorAll('.action_link');
+                array = Array.prototype.slice.call(links);
+                return array.map(link=>link.href);
+        """
+        
+        edit_links = self.driver.execute_script(edit_script)
+        
+               
+        print("Edit Links -",len(edit_links))
+        
+        cdp_script = """
+                table = document._getElementsByXPath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/form[2]/table/tbody/tr/td/table[1]');
+                links = table[0].querySelectorAll('.table_detail_link');
+                array = Array.prototype.slice.call(links);
+                return array.map(link=>link.href);
+        """
+        cdp_links = self.driver.execute_script(cdp_script)
+        
+        cdp_links = list(set(cdp_links))
+        
+        print("CDP Links -",len(cdp_links))
+              
+        self.attr_toCSV(edit_links)
+        # This doesn't hit???????
+        try:
+            self.driver.find_element_by_link_text(nav)\
+                .click()
+        except:
+            self.driver.find_element_by_link_text('Lululemon EU_EN Navigation')\
+                .click()
+        self.recursion_catalog(cdp_links)
+        
+        
+            
+    def catalog_crawl(self, link):
+        self.driver.get(link)
+        try:
+            self.driver.find_element_by_xpath('//button[@name=\"CategoryPageSize\"]')\
+                .click()
+        except:
+            pass
+                      
+        script_cdp_button = """
+                table = document._getElementsByXPath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/form[2]/table/tbody/tr/td/table[1]');
+                links = table[0].querySelectorAll('.table_detail_link');
+                array = Array.prototype.slice.call(links);
+                return array.map(link=>link.href);
+        """
+        cdp_links = self.driver.execute_script(script_cdp_button)
+        
+        cdp_links = list(set(cdp_links))
+        
+        self.category_attr_crawl(link)       
+               
+        print("CDP Links -",len(cdp_links))
+        return cdp_links or []
+
+    def category_attr_crawl(self, link):
+        edit_script = """
+                table = document._getElementsByXPath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/form[2]/table/tbody/tr/td/table[1]');
+                links = table[0].querySelectorAll('.action_link');
+                array = Array.prototype.slice.call(links);
+                return array.map(link=>link.href);
+        """
+        
+        edit_links = self.driver.execute_script(edit_script)
+        
+        print("Edit Links -",len(edit_links))
+        
+        self.attr_toCSV(edit_links)
+        self.driver.get(link)
+        
+    def attr_toCSV(self, edit_links):
+        with open(self.seo_filename, "a", encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+                        
+            for edit in edit_links: 
+                
+                self.driver.get(edit)
+                
+                category_id = self.driver.find_element_by_xpath("//input[@name=\"RegFormAddCategory_Id\"]").get_attribute('value')
+                
+                self.driver.find_element_by_link_text('Category Attributes').click()
+    
+                href_lang_tag = self.driver.find_element_by_xpath('//*[@id="Meta12caa1c79d61919817dda9fecd"]').get_attribute('value')
+                
+                print(category_id)
+                print(href_lang_tag)
+                
+                copy = [category_id, href_lang_tag, edit]
+                
+                writer.writerow(copy)
+            f.close()
+        
         
 
+    def recursion_catalog(self, cdp_links):
+        if not cdp_links:
+            return [] 
+        
+        try:
+            self.driver.find_element_by_xpath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/form[2]/table/tbody/tr/td/table[1]')
+        except:
+            return []
+                    
+        link = cdp_links[0]
+        
+        print(link)
+        
+        new_links = self.catalog_crawl(link)
+               
+        cdp_links += new_links
+        
+        done = cdp_links.pop(0)
+       
+        total = [link] + new_links + self.recursion_catalog(cdp_links)
+        """ Hitting error for NoneType, but scraped deep enough """
+        # Recursion error
+        print(total)
+        
+    def updateHref(self, filename):
+        
+        with open (filename, newline = '', encoding='UTF-8') as csvfile:
+            
+            reader = csv.DictReader(csvfile)
+            
+            for row in reader: 
+                            
+                edit_link = row['edit_link'].strip()
+                
+                new_langtag = row['new langtag'].strip()
+                
+                self.driver.get(edit_link)
+                
+                self.driver.find_element_by_link_text('Category Attributes').click()
+    
+                textarea = self.driver.find_element_by_xpath('//*[@id="Meta12caa1c79d61919817dda9fecd"]')
+                
+                textarea.clear()
+                
+                textarea.send_keys(new_langtag)
+                                
+                apply_script = """
+                    button = document._getElementsByXPath('//*[@id="bm_content_column"]//button')[2];
+                    button.click()
+                """
+                
+                self.driver.execute_script(apply_script)
+          
+        return True
 
+""" Clean up Hrefs in CSV """        
+def getPairs():
+    with open ("./csv/seo/hrefs_corrections.csv", newline = '', encoding='UTF-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        pairs = []
+        
+        for row in reader: 
+            
+            try:
+                """ PERSONAL MAC """
+                old = row['old'].strip()
+            except:
+                """ OFFICE COMPUTER """
+                old = row['\ufeffold'].strip()
+            
+            new = row['new'].strip()
+            
+            pair = [old, new]
+            
+            pairs.append(pair) 
+        print(pairs)
+        return pairs
 
+def updateHrefCSV():
+    with open("./csv/seo/category_edit_links.csv", newline = '', encoding='UTF-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        pairs = getPairs()
+        
+        with open("./csv/seo/href_new.csv", "w", encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["ID", "old langtag", "new langtag", "edit_link"])
+        
+            for row in reader:
+                try:
+                    ID = row['\ufeffID'].strip()
+                except:
+                    ID = row['ID'].strip()
+                
+                old = row['Hreflangtag'].strip()
+                
+                edit_link = row['Edit link'].strip()
+                
+                new = old
+                
+                for pair in pairs:
+                    if pair[0] in new: 
+                        new = new.replace(pair[0], pair[1])
+                        print("{} => {}".format(pair[0],pair[1]))
+                
+                writer.writerow([ID, old, new, edit_link])    
+
+"""======================================================================================================="""
 
 """ Creating instance of SFbot 🤖 """
 site = input("Enter Site -").strip()
 my_bot = SFBot('hlau2@lululemon.com', pw, site)
 
 
-""" Assign Multi Categories ( ) """
+""" Assign Multi Categories 😊 """
 """Need to change logic for if no search result"""
 # catFile = './csv/categories_' + site + '.csv'
 # categories = my_bot.getCategories(catFile)
@@ -613,15 +868,25 @@ my_bot = SFBot('hlau2@lululemon.com', pw, site)
 # my_bot.navPriceBook(priceBook)
 # my_bot.deletePrice(skus)
 
+
 """ Create Variant Groups 😊 """ 
-variations = my_bot.getVariations('./csv/variations.csv')
-my_bot.navProducts()
-my_bot.createVariants(variations)
+# variations = my_bot.getVariations('./csv/variations.csv')
+# my_bot.navProducts()
+# my_bot.createVariants(variations)
 
 
+""" Recursive HRefLang Crawl"""
+# my_bot.hreflang()
 
 
+""" HRefland Update """
+updateHrefCSV()
+my_bot.updateHref('./csv/seo/href_new.csv')
 
+
+""" Change front color """
+# path = document._getElementsByXPath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/form/table[4]/tbody/tr[1]/td/table[4]/tbody/tr[13]/td[3]/input')
+# path[0].value.include('Spiced Bronze')
 
 
 
