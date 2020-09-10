@@ -7,8 +7,8 @@ Bot to automate content management tasks:
   - [x] Edit Products' Name in Bulk
   - [x] Create Variation PIDs in Bulk
   - [x] Bulk update SEO Href Lang Tags
-  - [ ] Edit Product Attributes (Name, Description, Meta)
-  - [ ] Change Front Facing Color in Bulk
+  - [x] Change Front Facing Color in Bulk
+  - [ ] Edit Multiple Product Attributes (Name, Description, Meta)
   
 ### Tech
 Bot uses a selenium, python and javascript.
