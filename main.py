@@ -4,9 +4,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from time import sleep
 import csv 
-import itertools
+from bs4 import BeautifulSoup
+import requests
 # from secrets import pw
 import pdb
+# import itertools
 
 class SFBot:
     def __init__(self, username, password, site):
@@ -588,6 +590,123 @@ class SFBot:
                 
                 self.deletePrice(skus)
     
+    def getFrontColor(self, filename):
+        variations = []
+
+        with open (filename, newline = '', encoding='UTF-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader: 
+                
+                try:
+                    """ PERSONAL MAC """
+                    master = row['master']
+                except:
+                    """ OFFICE COMPUTER """
+                    master = row['\ufeffmaster']
+                
+                colors = [color.strip() for color in row['colors'].split(",")]
+                
+                pair = [master, colors]
+                
+                variations.append(pair)
+                
+        print("Variations: ",variations)
+        return variations
+    
+    def updateFrontColor(self, variations):
+        try:
+            while variations: 
+                # Takes first pair, when finished pop(0)
+                pair = variations[0]
+                print(pair)
+                
+                product = pair[0]
+                colors = [color.lower() for color in pair[1]]
+                
+                print("Product -", product)
+                print("Colors -", colors)
+                
+                search = self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")
+                search.send_keys(product)
+                               
+                self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
+                    .click()
+                
+                self.driver.find_element_by_link_text(product)\
+                    .click()
+                
+                self.driver.find_element_by_link_text('Variations').click()
+                
+                self.driver.find_element_by_link_text('color ⁄ color').click()
+                
+                try:
+                    self.driver.find_element_by_link_text('Lock').click()
+                except: 
+                    pass
+                
+                all_button = """
+                    button = document._getElementsByXPath('//button[@name="PageSize"]');
+                    button[1].click()
+                """
+                try:
+                    self.driver.execute_script(all_button)                
+                except: 
+                    pass
+                
+                color_script = """
+                            table = document._getElementsByXPath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/form/table[4]');
+                            rows = table[0];
+                            inputs = rows.querySelectorAll('input');
+                            
+                            length = inputs.length
+                            colors = {}
+                            
+                            for (let i = 0; i < length; i++) {{
+                                name = inputs[i].value.toLowerCase();    
+                                if (colors.include(name)) {{
+                                        inputs[i-2].click();
+                                }}
+                            }}
+                            button = rows.querySelector('input[name="moveTop"]');
+                            button.click();
+                            
+
+                                    
+                """.format(colors)
+                self.driver.execute_script(color_script)             
+
+                # confirm_script = """
+                #             table = document._getElementsByXPath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/form/table[4]');
+                #             rows = table[0];
+                #             inputs = rows.querySelectorAll('input');
+                            
+                #             length = inputs.length
+                #             colors = {}
+                #             first = colors[0]
+                #             table_first = inputs[4].value.toLowerCase()
+                            
+                #             if (first != table_first) {{
+                #                 for (let i = 0; i < length; i++) {{
+                #                     name = inputs[i].value.toLowerCase();    
+                #                     if (first === name) {{
+                #                             inputs[i-2].click();
+                #                     }}
+                #                     break;
+                #                 }}
+                #                 button = rows.querySelector('input[name="moveTop"]');
+                #                 button.click();                            
+                #             }}
+                # """.format(colors)
+                # self.driver.execute_script(confirm_script)
+                               
+                self.driver.find_element_by_link_text('Unlock').click()
+                self.driver.find_element_by_link_text('Products').click()
+                
+                done = variations.pop(0)
+                print("Complete pair -", pair)
+        except:
+            raise
+    
     def hreflang(self):
         
         try: 
@@ -623,7 +742,7 @@ class SFBot:
         self.driver.find_element_by_link_text(nav)\
                 .click()
         
-        self.seo_filename = input("Enter filename -").strip() + ".csv"
+        self.seo_filename = './csv/logs/' + self.site + "_BM_categories(Request).csv"
         
         with open(self.seo_filename, "w", encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
@@ -661,13 +780,14 @@ class SFBot:
         print("CDP Links -",len(cdp_links))
               
         self.attr_toCSV(edit_links)
-        # This doesn't hit???????
+        
         try:
             self.driver.find_element_by_link_text(nav)\
                 .click()
         except:
             self.driver.find_element_by_link_text('Lululemon EU_EN Navigation')\
                 .click()
+        
         self.recursion_catalog(cdp_links)
         
         
@@ -680,13 +800,13 @@ class SFBot:
         except:
             pass
                       
-        script_cdp_button = """
+        cdp_button = """
                 table = document._getElementsByXPath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/form[2]/table/tbody/tr/td/table[1]');
                 links = table[0].querySelectorAll('.table_detail_link');
                 array = Array.prototype.slice.call(links);
                 return array.map(link=>link.href);
         """
-        cdp_links = self.driver.execute_script(script_cdp_button)
+        cdp_links = self.driver.execute_script(cdp_button)
         
         cdp_links = list(set(cdp_links))
         
@@ -735,9 +855,10 @@ class SFBot:
         
 
     def recursion_catalog(self, cdp_links):
+        # We finished the list of CDPs
         if not cdp_links:
             return [] 
-        
+        # Bot did not find any more CDPs in this path
         try:
             self.driver.find_element_by_xpath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/form[2]/table/tbody/tr/td/table[1]')
         except:
@@ -748,14 +869,14 @@ class SFBot:
         print(link)
         
         new_links = self.catalog_crawl(link)
-               
+        
         cdp_links += new_links
         
         done = cdp_links.pop(0)
        
         total = [link] + new_links + self.recursion_catalog(cdp_links)
-        """ Hitting error for NoneType, but scraped deep enough """
-        # Recursion error
+        
+        # Recursion error: Not returning but able to save all category IDs
         print(total)
         
     def updateHref(self, filename):
@@ -791,7 +912,7 @@ class SFBot:
 
 """ Clean up Hrefs in CSV """        
 def getPairs():
-    with open ("./csv/seo/hrefs_corrections.csv", newline = '', encoding='UTF-8') as csvfile:
+    with open ("./csv/seo/old_to_new_hrefs.csv", newline = '', encoding='UTF-8') as csvfile:
         reader = csv.DictReader(csvfile)
         pairs = []
         
@@ -817,7 +938,7 @@ def updateHrefCSV():
         reader = csv.DictReader(csvfile)
         pairs = getPairs()
         
-        with open("./csv/seo/href_new.csv", "w", encoding='utf-8', newline='') as f:
+        with open("./csv/seo/new_href_langtag.csv", "w", encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(["ID", "old langtag", "new langtag", "edit_link"])
         
@@ -837,7 +958,7 @@ def updateHrefCSV():
                     if pair[0] in new: 
                         new = new.replace(pair[0], pair[1])
                         print("{} => {}".format(pair[0],pair[1]))
-                
+                 
                 writer.writerow([ID, old, new, edit_link])    
 
 """======================================================================================================="""
@@ -875,23 +996,37 @@ my_bot = SFBot('hlau2@lululemon.com', pw, site)
 # my_bot.createVariants(variations)
 
 
-""" Recursive HRefLang Crawl"""
+""" Recursive HRefLang Crawl 😊 """
 # my_bot.hreflang()
 
 
-""" HRefland Update """
-updateHrefCSV()
-my_bot.updateHref('./csv/seo/href_new.csv')
+""" HRefland Update 😊 """
+# updateHrefCSV()
+# my_bot.updateHref('./csv/seo/new_href_langtag.csv')
 
 
-""" Change front color """
-# path = document._getElementsByXPath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/form/table[4]/tbody/tr[1]/td/table[4]/tbody/tr[13]/td[3]/input')
-# path[0].value.include('Spiced Bronze')
+""" Change front color 😢 """
+"""Missing ability to use the first color in list as front"""
+# variations = my_bot.getFrontColor('./csv/colors.csv')
+# my_bot.navProducts()
+# my_bot.updateFrontColor(variations)
 
 
+""" Passing Selenium Cookie to Request 😢 """
+# s = requests.Session()
+# cookies = my_bot.driver.get_cookies()
+# print(cookies)
+# for c in cookies:
+#     s.cookies.set(c['name'], c['value'])
+# url = "https://staging-eu01-lululemon.demandware.net/on/demandware.store/Sites-Site/default/ViewChannelCatalog_52-Dispatch?csrf_token=0JOLo-i209l4giKiJy_Ay9fbY0Oxfm1InckMa8PPYEpCT_W7dcLAmdviGlhdGwgJ6Y7gIsbsa6AJ9zvBG9nkKpzX_AhmH8HwV03aoqdpzS-kcLwNj70soHFcluPo9cC3KVvNuBBCvej1nOJUGWpiPOtM-8ULd4QGMDtRsHQ_wdpCkOoh7oM="
+# resp = s.get(url)
+# print(resp.status_code)
+# soup = BeautifulSoup(resp.text, "html.parser")
+
+# pdb.set_trace()
 
 
-
+""" Passing Selenium Cookie to urllib 😢 """
 
 
 """ DATA STRUCTURES """
