@@ -102,6 +102,52 @@ class SFBot:
           
         print("Product Page")
     
+    def copyProductStatus(self, products):
+            
+        # b = a[0:len(a)]
+        # del a[0:len(a)]
+
+        while products:
+            if len(products) > 1000:
+                print(len(products))
+                
+                search = products[0:1000]
+                print(len(search))
+                search = ",".join(search)
+                
+                del products[0:1000]
+                print("====")
+                print(len(products))
+            else:
+                search = ", ".join(products)
+                del products[0:len(products)]
+                
+            search_bar = self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")
+                
+            search_bar.send_keys(search)
+        
+            print("Searching -{}".format(len(search)))
+                
+            self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
+                    .click()
+                    
+            all_button = """
+                    button = document._getElementsByXPath('//button[@name="PageSize"]');
+                    button[button.length -1].click()
+                """
+            try:
+                self.driver.execute_script(all_button)                
+            except: 
+                pass
+            
+            table = self.driver.find_element_by_xpath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/form/table/tbody/tr/td/table[1]')
+            content = table.get_attribute('outerHTML')
+            with open("searchresult.txt", "a", encoding='utf-8') as file:
+                file.write(content)
+            
+            self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]").clear()
+            
+    
     def setCategories(self, primary, secondary):
             
         while primary or secondary: 
@@ -135,8 +181,15 @@ class SFBot:
             self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
                 .click()
             
-            self.driver.find_element_by_xpath('//button[@name=\"EditAll\"]')\
-                .click()
+            try:
+                self.driver.find_element_by_xpath('//button[@name=\"EditAll\"]')\
+                    .click()
+            except:
+                edit_all = """
+                    button = document._getElementsByXPath('//button[@name=\"EditAll\"]')
+                    button[0].click()
+                """
+                self.driver.execute_script(edit_all)
                 
             print("Found: ", products)
             
@@ -909,7 +962,91 @@ class SFBot:
                 self.driver.execute_script(apply_script)
           
         return True
+    
+    def getImage(self, filename):
+        pass
+    
+    def addImage(self, s):
 
+        # pair = names[0]
+        # print(pair)
+        
+        # product = pair[0]
+        # attribute = pair[1]
+        
+        product = 'LW2BA5S'
+        color = "Collage Camo Mini Black Multi"
+        color = color.lower()
+        style_color = 'LW2BA5S-045782'
+        style_color = style_color.replace("-","_")
+        
+        domain = "https://images.lululemon.com/is/image/lululemon/"
+        avail_img = [style_color + '_' + str(i) for i in range(10) if s.get(domain + style_color + '_' + str(i)).status_code == 200]
+        print("Available images -",avail_img)
+        
+        search = self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")
+        search.send_keys(product)
+                       
+        self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
+            .click()
+        
+        self.driver.find_element_by_link_text(product)\
+            .click()
+        
+        try:
+            self.driver.find_element_by_link_text('Lock').click()
+        except:
+            pass
+        print("Unlocked")
+        
+        # Edit Image
+        try:
+            self.driver.find_element(By.ID, "imageSpecificationButton").click()
+        except:
+            button = """
+                document.querySelector('#imageSpecificationButton').click()
+            """
+            self.driver.execute_script(button)
+        # Product Master
+        try:
+            self.driver.find_element(By.ID, "extdd-27").click()
+        except:
+            productmaster = """
+                document.querySelector('#extdd-27').click()
+            """
+            self.driver.execute_script(productmaster)
+        
+        select_color = """
+        nodes = document.querySelectorAll('.x-tree-node');
+        nodes_list = Array.from(nodes);
+        nodes_list.shift();
+        length = nodes_list.length;
+        for (let i = 0; i < length; i++) {{
+                node = nodes_list[i].innerText.toLowerCase();
+                if (node.includes('{}')) {{
+                        nodes_list[i].querySelector('a').click();
+                }}
+                break;
+        }}
+        """.format(color)
+        print(select_color)
+        self.driver.execute_script(select_color)
+        # Gets the rows (hi-res, large, medium, small) and last idx is fill in style color 
+        script = """
+        body = document._getElementsByXPath('//*[@id="ext-gen122"]')
+        body = body[0]
+        node_list = body.querySelectorAll('div.x-tree-node-el.x-tree-node-leaf.x-unselectable');
+               
+        n = Array.from(node_list)
+        map = n.map(x => x.querySelector('table'))
+        rows = map.filter(x => x != null)
+        
+        return rows
+        """
+        rows = self.driver.execute_script(script)
+        pdb.set_trace()
+        
+        
 """ Clean up Hrefs in CSV """        
 def getPairs():
     with open ("./csv/seo/old_to_new_hrefs.csv", newline = '', encoding='UTF-8') as csvfile:
@@ -1005,12 +1142,34 @@ my_bot = SFBot('hlau2@lululemon.com', pw, site)
 # my_bot.updateHref('./csv/seo/new_href_langtag.csv')
 
 
+""" Return Search Results in CSV 😢 """
+# my_bot.navProducts()
+# products = [x.strip() for x in input("Enter Products -").splitlines()]
+# my_bot.copyProductStatus(products)
+
+
 """ Change front color 😢 """
 """Missing ability to use the first color in list as front"""
 # variations = my_bot.getFrontColor('./csv/colors.csv')
 # my_bot.navProducts()
 # my_bot.updateFrontColor(variations)
 
+
+""" Add missing images 😢 """
+my_bot.navProducts()
+s = requests.Session()
+my_bot.addImage(s)
+
+# product = 'LW1CONS'
+# color = "Light Military Kombu Wash"
+# color = color.lower()
+# style_color = 'LW1CONS-046654'
+# style_color = style_color.replace("-","_")
+
+# domain = "https://images.lululemon.com/is/image/lululemon/"
+
+# avail_img = [style_color + '_' + str(i) for i in range(10) if s.get(domain + style_color + '_' + str(i)).status_code == 200]
+# print(avail_img)
 
 """ Passing Selenium Cookie to Request 😢 """
 # s = requests.Session()
