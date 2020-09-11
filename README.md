@@ -8,6 +8,7 @@ Bot to automate content management tasks:
   - [x] Create Variation PIDs in Bulk
   - [x] Bulk update SEO Href Lang Tags
   - [x] Change Front Facing Color in Bulk
+  - [ ] Add missing images
   - [ ] Edit Multiple Product Attributes (Name, Description, Meta)
   
 ### Tech
