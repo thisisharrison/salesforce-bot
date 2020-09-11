@@ -6,7 +6,7 @@ from time import sleep
 import csv 
 from bs4 import BeautifulSoup
 import requests
-# from secrets import pw
+from secrets import pw
 import pdb
 # import itertools
 
@@ -963,88 +963,169 @@ class SFBot:
           
         return True
     
-    def getImage(self, filename):
+    def getMissingImage(self, filename):
         pass
     
-    def addImage(self, s):
+    def addMissingImage(self, s, pairs):
+        while pairs:    
+            pair = pairs[0]
 
-        # pair = names[0]
-        # print(pair)
+            product = pair[0]
+            color = pair[1]
+            style_color = pair[2]
+            
+            color = color.lower()
+            style_color = style_color.replace("-","_")
+            
+            domain = "https://images.lululemon.com/is/image/lululemon/"
+            avail_img = [style_color + '_' + str(i) for i in range(10) if s.get(domain + style_color + '_' + str(i)).status_code == 200]
+            print("Available images -",avail_img)
+            
+            search = self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")
+            search.send_keys(product)
+                        
+            self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
+                .click()
+            
+            self.driver.find_element_by_link_text(product)\
+                .click()
+            
+            try:
+                self.driver.find_element_by_link_text('Lock').click()
+            except:
+                pass
+            print("Unlocked")
+            
+            # Edit Image
+            try:
+                self.driver.find_element(By.ID, "imageSpecificationButton").click()
+            except:
+                button = """
+                    document.querySelector('#imageSpecificationButton').click()
+                """
+                self.driver.execute_script(button)
+            # Product Master
+            try:
+                # self.driver.find_element(By.ID, "extdd-27").click()
+                self.driver.find_element_by_xpath("//span[contains(text(),'product master')]").click()
+            except:
+                productmaster = """
+                    document.querySelector('#extdd-27').click()
+                """
+                self.driver.execute_script(productmaster)
+            
+            if self.selectColor(color):
+                pass
+            else:
+                self.driver.find_element_by_id('ext-gen98').click()
+                
+                table = self.driver.find_element_by_xpath('//*[@id="ext-gen286"]/div/li/ul')
+                pdb.set_trace()
+                li = table.find_elements_by_class_name('x-tree-node')
+                
+                """ ========== HERE!!! ========== """
+                # cannot get the index
+                x = [idx for idx, el in enumerate(li) if color in el.get_attribute('innerHTML').lower()]
+                print(idx)
+                idx = idx.pop()
+                
+            
+
+            checkFirst = True
+            
+            while avail_img:
+                # Gets the rows (hi-res, large, medium, small) and last idx is fill in style color 
+                img = avail_img[0]
+                script = """
+                body = document._getElementsByXPath('//*[@id="ext-gen122"]')
+                body = body[0]
+                node_list = body.querySelectorAll('div.x-tree-node-el.x-tree-node-leaf.x-unselectable');
+                    
+                n = Array.from(node_list)
+                map = n.map(x => x.querySelector('table'))
+                rows = map.filter(x => x != null)
+                
+                return rows
+                """
+                rows = self.driver.execute_script(script)
+                
+                table = [x.get_attribute('innerHTML') for x in rows]
+                content = " ".join(table)
+                soup = BeautifulSoup(content, "html.parser")
+                anchors = soup.find_all(class_="img-mgr-image-node img-mgr-image-node-border x-tree-node-icon x-tree-node-inline-icon")
+                ids = [x.get('id') for x in anchors]
+                
+                if checkFirst:
+                    first_box = self.driver.find_element_by_id(ids[0])
+                    detail_path = self.driver.find_element_by_id('detail_path')
+                
+                    first_box.click()
+
+                    if style_color + '_1' in detail_path.get_attribute('value'):
+                        done = avail_img.pop(0)
+                        checkFirst = False
+                        continue
+
+                for i in range(len(ids)-3):
+                    el = self.driver.find_element_by_id(ids[i]).get_attribute('outerHTML')
+                    if style_color in el:
+                        continue
+                    else:
+                        self.driver.find_element_by_id(ids[i]).click()
+                        self.driver.find_element_by_id('detail_path').send_keys(img)
+                
+                done = avail_img.pop(0)
+                    
+            try:
+                save = self.driver.find_elements_by_xpath('//*[@id="ext-gen79"]')
+                save.click()
+            except:
+                self.driver.find_element_by_xpath("//button[contains(text(), 'Save')]")\
+                    .click()
+            
+            done = pairs.pop(0)
+
+            self.driver.find_element_by_link_text('Unlock').click()
+            self.driver.find_element_by_link_text('Products').click()
+                
+            print("Complete pair -", pair)
         
-        # product = pair[0]
-        # attribute = pair[1]
-        
-        product = 'LW2BA5S'
-        color = "Collage Camo Mini Black Multi"
-        color = color.lower()
-        style_color = 'LW2BA5S-045782'
-        style_color = style_color.replace("-","_")
-        
-        domain = "https://images.lululemon.com/is/image/lululemon/"
-        avail_img = [style_color + '_' + str(i) for i in range(10) if s.get(domain + style_color + '_' + str(i)).status_code == 200]
-        print("Available images -",avail_img)
-        
-        search = self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")
-        search.send_keys(product)
-                       
-        self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
-            .click()
-        
-        self.driver.find_element_by_link_text(product)\
-            .click()
-        
+    def selectColor(self, color):
         try:
-            self.driver.find_element_by_link_text('Lock').click()
+            capitalize_color = " ".join([el.capitalize() for el in color.split(" ")])
+            colorpath = "//span[contains(text(),'{}')]".format(capitalize_color)
+            self.driver.find_element_by_xpath(colorpath).click()
+            return True
         except:
-            pass
-        print("Unlocked")
-        
-        # Edit Image
-        try:
-            self.driver.find_element(By.ID, "imageSpecificationButton").click()
-        except:
-            button = """
-                document.querySelector('#imageSpecificationButton').click()
-            """
-            self.driver.execute_script(button)
-        # Product Master
-        try:
-            self.driver.find_element(By.ID, "extdd-27").click()
-        except:
-            productmaster = """
-                document.querySelector('#extdd-27').click()
-            """
-            self.driver.execute_script(productmaster)
-        
-        select_color = """
-        nodes = document.querySelectorAll('.x-tree-node');
-        nodes_list = Array.from(nodes);
-        nodes_list.shift();
-        length = nodes_list.length;
-        for (let i = 0; i < length; i++) {{
-                node = nodes_list[i].innerText.toLowerCase();
-                if (node.includes('{}')) {{
-                        nodes_list[i].querySelector('a').click();
+            try:
+                colorpath = "//span[contains(text(),'{}')]".format(color)
+                self.driver.find_element_by_xpath(colorpath).click()
+                return True
+            except:
+                select_color = """
+                nodes = document.querySelectorAll('.x-tree-node');
+                nodes_list = Array.from(nodes);
+                nodes_list.shift();
+                length = nodes_list.length;
+                found = false
+                for (let i = 1; i < length; i++) {{
+                        node = nodes_list[i].innerText.toLowerCase();
+                        if (node.includes('{}')) {{
+                                nodes_list[i].querySelector('a').click();
+                                found = true
+                        }}
+                        break;
                 }}
-                break;
-        }}
-        """.format(color)
-        print(select_color)
-        self.driver.execute_script(select_color)
-        # Gets the rows (hi-res, large, medium, small) and last idx is fill in style color 
-        script = """
-        body = document._getElementsByXPath('//*[@id="ext-gen122"]')
-        body = body[0]
-        node_list = body.querySelectorAll('div.x-tree-node-el.x-tree-node-leaf.x-unselectable');
-               
-        n = Array.from(node_list)
-        map = n.map(x => x.querySelector('table'))
-        rows = map.filter(x => x != null)
+                if (found) {{
+                    return True
+                }} else {{
+                    return ''
+                }}
+                """.format(color)
+                found = self.driver.execute_script(select_color)
+                return bool(found)
+        return False
         
-        return rows
-        """
-        rows = self.driver.execute_script(script)
-        pdb.set_trace()
         
         
 """ Clean up Hrefs in CSV """        
@@ -1158,18 +1239,17 @@ my_bot = SFBot('hlau2@lululemon.com', pw, site)
 """ Add missing images 😢 """
 my_bot.navProducts()
 s = requests.Session()
-my_bot.addImage(s)
+# filename = ''
+# pairs = my_bot.getMissingImage(filename)
 
-# product = 'LW1CONS'
-# color = "Light Military Kombu Wash"
-# color = color.lower()
-# style_color = 'LW1CONS-046654'
-# style_color = style_color.replace("-","_")
+product = 'prod9850150'
+color = "Heathered Mod Faint Coral"
+style_color = 'LW3BZVS-037724'
+pairs = [[product, color, style_color]]
 
-# domain = "https://images.lululemon.com/is/image/lululemon/"
+my_bot.addMissingImage(s, pairs)
 
-# avail_img = [style_color + '_' + str(i) for i in range(10) if s.get(domain + style_color + '_' + str(i)).status_code == 200]
-# print(avail_img)
+
 
 """ Passing Selenium Cookie to Request 😢 """
 # s = requests.Session()
