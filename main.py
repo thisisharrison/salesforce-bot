@@ -1185,6 +1185,8 @@ def updateHrefCSV():
 
 ##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### 
 
+
+
 """ Creating instance of SFbot 🤖 """
 site = input("Enter Site -").strip()
 my_bot = SFBot('hlau2@lululemon.com', pw, site)
@@ -1271,19 +1273,18 @@ my_bot.addMissingImage(s, pairs)
 
 """ Passing Selenium Cookie to urllib 😢 """
 
+""" Controller for the Bot 🤖 """
+# running = True
 
-""" DATA STRUCTURES """
+# while running:
+#     site = input("Enter Site -").strip()
+#     my_bot = SFBot('hlau2@lululemon.com', pw, site)    
+#     action = input("What do you want? -")
+#     cases = {
+#         'q': my_bot.driver.quit()
+#     }
+#     cases[action]
+#     if action == "q":
+#         running = False
 
-# priceBook = '66198-CHF-SALE'
 
-# skus = ['113225555', 
-# '113225558', 
-# '113225559', 
-# ] 
-
-# names = [
-#     ['LW5CZWA', 'lululemon Align™ High-Rise Pant 26"'], ['LW5CYBS', 'Here to There High-Rise 7/8 Pant'], 
-#     ]
-
-# prim_cat = {'primary': {'masters'}}
-# sub_cat = {'secondary': {'masters'}}
