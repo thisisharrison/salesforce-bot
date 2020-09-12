@@ -8,50 +8,47 @@ from bs4 import BeautifulSoup
 import requests
 from secrets import pw
 import pdb
-# import itertools
 
 class SFBot:
     def __init__(self, username, password, site):
+        # Locate Chrome Driver
         try:
             """ PERSONAL MAC """
             self.driver = webdriver.Chrome('/Users/harrisonlau/chromedriver')
         except:
             """ OFFICE WINDOWS """
             self.driver = webdriver.Chrome()
+        # Set implicit wait time
         self.driver.implicitly_wait(5)
         
+        # Credentials
         self.username = username
-
         self.password = password
-        
         self.site = site
         
+        # Go to login site
         self.driver.get("https://staging-eu01-lululemon.demandware.net/on/demandware.store/Sites-Site/default/ViewLogin-StartAM")
-        
         self.driver.find_element_by_xpath("//button[contains(text(), 'Log In')]")\
             .click()
-        
         self.login()
 
     def login(self):
 
         try:
-        
+            # Enter username
             self.driver.find_element_by_xpath("//input[@name=\"callback_0\"]")\
                 .send_keys(self.username)
-            
             self.driver.find_element_by_xpath('//input[@type="submit"]')\
                 .click()
-            
+            # Enter password
             self.driver.find_element_by_xpath("//input[@name=\"callback_1\"]")\
                 .send_keys(self.password)
-            
             self.driver.find_element_by_xpath('//input[@type="submit"]')\
                 .click()
         
-        except:
-
-            print("Retry logging in")
+        except Exception as error:
+            print(error)
+            print("Retry logging in...")
             self.login()
 
         """ Select Site """
@@ -73,6 +70,7 @@ class SFBot:
         
         sleep(3)
 
+    """ Navigate to Product Page """
     def navProducts(self):
         
         try: 
@@ -82,7 +80,9 @@ class SFBot:
                   
             self.driver.find_element_by_link_text('Products').click()
         
-        except: 
+        except Exception as error:
+            print(error)
+            print("Alternative Navigation")
             
             self.driver.find_element_by_link_text('Merchant Tools')\
                 .click()
@@ -93,8 +93,6 @@ class SFBot:
             self.driver.find_element_by_link_text('Products')\
                 .click()
             
-            print("Alternative Navigation")
-        
         sleep(3)
         
         self.driver.find_element_by_link_text('By ID')\
@@ -147,24 +145,72 @@ class SFBot:
             
             self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]").clear()
             
-    
+    """ Search for Products in Products Tool """
+    def searchProducts(self, products):
+        self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")\
+                .send_keys(products)
+            
+        print("Searching: ", products)
+        
+        self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
+            .click()
+
+    """ Get Primary and SubCategories Assignment from CSV to pass to #setCategories """
+    def getCategories(self, filename):
+        
+        pCats = {}
+        sCats = {}
+
+        with open (filename, newline = '', encoding='UTF-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader: 
+                try:
+                    """ PERSONAL MAC """
+                    master = row['master']
+                except:
+                    """ OFFICE WINDOWS """
+                    master = row['\ufeffmaster']
+                
+                primary = row['primaryCategory']
+                secondary = [cat.strip() for cat in row['subCategories'].split(',')]
+                
+                # not primary for this product
+                if len(primary) < 1:
+                    pass
+                else:
+                    # add to primary list
+                    if primary in pCats.keys():
+                        pCats[primary].add(master)
+                    else: 
+                        # remove duplicate masters 
+                        pCats[primary] = set([master])
+                
+                for sec in secondary:
+                    if len(sec) < 1:
+                        continue
+                    if sec in sCats.keys():
+                        sCats[sec].add(master)
+                    else:
+                        sCats[sec] = set([master])
+                    
+        print("Primary Categories to merchandise: ",pCats)
+        print("Sub Categories to merchandise: ",sCats)
+        
+        return [pCats, sCats]
+
+    """ Assign Primary and Subcategories to Products """
     def setCategories(self, primary, secondary):
             
         while primary or secondary: 
-            
-            # POP keys with Set 
-            # h = {1:'a', 2:'b'}
-            # n = next(iter(h))
-            # print(n)
-            # h.pop(n)
-            # print(h)
 
             try: 
                 category = next(iter(primary))
                 isPrimary = True
+                job = "Primary Categorized"
             except:
                 category = next(iter(secondary))
                 isPrimary = False
+                job = "Secondary Categorized"
                 
             try:
                 products = ", ".join(list(primary[category]))
@@ -172,14 +218,16 @@ class SFBot:
                 products = ", ".join(list(secondary[category]))
                 
             print("Merchandising: ", category)
-        
-            self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")\
-                .send_keys(products)
+
+            self.searchProducts(products)
+
+            # self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")\
+            #     .send_keys(products)
             
-            print("Searching: ", products)
+            # print("Searching: ", products)
             
-            self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
-                .click()
+            # self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
+            #     .click()
             
             try:
                 self.driver.find_element_by_xpath('//button[@name=\"EditAll\"]')\
@@ -238,15 +286,15 @@ class SFBot:
             self.driver.find_element_by_xpath('//button[@name="assignProductsAndReturn"]')\
                 .click()
                 
-            print("Primary Categorized: %s > %s" % (products, category))
+            print("%s: %s > %s" % (job, products, category))
             
             try:
                 primary.pop(category)
             except:
                 secondary.pop(category)
                 
-            
-    def changeAttribute(self, names):
+    """ Change products' names """        
+    def setNames(self, names):
         
         try: 
             while names:
@@ -258,30 +306,21 @@ class SFBot:
                 product = pair[0]
                 attribute = pair[1]
             
-                search = self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")
-                search.send_keys(product)
+                self.searchProducts(product)
+                
+                # search = self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")
+                # search.send_keys(product)
                                
-                self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
-                    .click()
+                # self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
+                #     .click()
                 
                 self.driver.find_element_by_link_text(product)\
                     .click()
                 
-                # If Search Multiple Products (separate function)
-                # el = self.driver.find_element_by_xpath("//a[contains(text(),'{}')]".format(product))
-                # url = el.get_attribute('href')
-                # self.driver.switch_to.window(self.driver.window_handles[1])
-                # self.driver.get(url)
-                # print("Opened new Tab")
-                # self.driver.close()
-                # self.driver.switch_to.window(self.driver.window_handles[1])
-    
+                # Select language
                 lang = self.driver.find_element_by_xpath('//select[@name="LocaleID"]')
                 
                 """ SELECT LANGUAGE """
-                # Japanese (Japan) = 23
-                # English (Hong Kong) = 7
-                
                 if self.site == 'JP':
                     idx = '23' 
                 elif self.site == 'HK':
@@ -293,9 +332,10 @@ class SFBot:
         
                 print("Language Selected")
                 
-                self.driver.find_element_by_link_text('Lock').click()
-                # self.driver.find_element_by_xpath('//*[@id="bm_content_column"]/table/tbody/tr/td/table/tbody/tr/td[2]/table[2]/tbody/tr/td[1]/table/tbody/tr[3]/td/table/tbody/tr/td[2]/p/a').click()
-                
+                try:
+                    self.driver.find_element_by_link_text('Lock').click()
+                except:
+                    pass
                 print("Unlocked")
         
                 name = self.driver.find_element_by_xpath('//*[@id="Metaf070c9f07840c78a8b2edc1902_Container"]/input')
@@ -306,7 +346,6 @@ class SFBot:
         
                 self.driver.find_element_by_xpath("//button[contains(text(), 'Apply')]").click()
                 
-                # Test to lock
                 self.driver.find_element_by_link_text('Unlock').click()
                 
                 print("Applied")
@@ -317,58 +356,15 @@ class SFBot:
                 
                 print(f"Remaining: {len(names)} names: ", names)
                 
-        except:
+        except Exception as error:
             
-            print('Error: Error Occurred')
+            print(error)
             
             print('Error: Remaining Pairs: ', names)
             
-            self.changeAttribute(names)
-            
+            self.setNames(names)
 
-    def getCategories(self, filename):
-
-        """ LOGIC CHANGE NEEDED """
-        # Need to change logic for if no search result
-
-        pCats = {}
-        sCats = {}
-
-        with open (filename, newline = '', encoding='UTF-8') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader: 
-                
-                try:
-                    """ PERSONAL MAC """
-                    master = row['master']
-                except:
-                    """ OFFICE WINDOWS """
-                    master = row['\ufeffmaster']
-                
-                primary = row['primaryCategory']
-                secondary = [cat.strip() for cat in row['subCategories'].split(',')]
-
-                if len(primary) < 1:
-                    pass
-                else:
-                    if primary in pCats.keys():
-                        pCats[primary].add(master)
-                    else: 
-                        pCats[primary] = set([master])
-                
-                for sec in secondary:
-                    if len(sec) < 1:
-                        continue
-                    if sec in sCats.keys():
-                        sCats[sec].add(master)
-                    else:
-                        sCats[sec] = set([master])
-                    
-        print("Primary Categories to merchandise: ",pCats)
-        print("Sub Categories to merchandise: ",sCats)
-        
-        return [pCats, sCats]
-        
+    """ Get Names for #setNames to change Products' Names """    
     def getNames(self, filename):
 
         names = []
@@ -393,6 +389,7 @@ class SFBot:
         print("Changing names: ",names)
         return names
     
+    """ Get SKUs from CSV """
     def getSkus(self, filename):
 
         skus = []
@@ -413,6 +410,7 @@ class SFBot:
         print("Changing skus: ",skus)
         return skus
     
+    """ Get Variation Mapping for Product Variation Groups """
     def getVariations(self, filename):
 
         variations = []
@@ -518,14 +516,6 @@ class SFBot:
                         }}
                 """.format(styleNumber, colorID)
                 
-                # print(script)
-                
-                # rows[2].innerText.include('LW5DDRA-034135')
-                # options = rows[2].getElementsByTagName('option')        
-                # select = rows[2].querySelector('select')        
-                # options[0].value = '34135'        
-                # select.selectedIndex = 0
-                
                 self.driver.execute_script(script)
                 
                 apply = """button = document._getElementsByXPath('//button[@name="applyVariationGroup"]');
@@ -547,14 +537,17 @@ class SFBot:
                 
                 done = variations.pop(0)
                 
-        except:
-            
-            print('Error: Error Occurred')
-            
+        except Exception as error:
+            print(error)
             print(f"Remaining: {len(variations)} variations: ", variations)
-            
-            raise
+            try: 
+                self.navProducts()
+                self.createVariants(variations)
+            except Exception as error: 
+                print(error)
+                raise
 
+    """ Navigate to Pricebook Page """
     def navPriceBook(self, priceBook):
      
         try: 
@@ -595,13 +588,14 @@ class SFBot:
         self.driver.find_element(By.LINK_TEXT, "Price Definitions").click() 
         
         self.driver.find_element(By.CSS_SELECTOR, "td:nth-child(3) > .perm_not_disabled").click()
+
+        print("Price Book Page")
         
+    """ Delete Pricing from Price Book """
     def deletePrice(self, skus):
                     
         search = self.driver.find_element_by_xpath("//input[@name=\"SearchTerm\"]")
         search.clear()
-
-        print("Price Book Page")
         
         try: 
             while skus:
@@ -636,13 +630,12 @@ class SFBot:
                 search = self.driver.find_element_by_xpath("//input[@name=\"SearchTerm\"]")
                 search.clear()
             
-        except:
-               
-                print("Error: Error occurred")
-                print("Error: Remaining SKUs: ",skus)
-                
-                self.deletePrice(skus)
+        except Exception as error:
+            print(error)
+            print("Error: Remaining SKUs: ",skus)
+            self.deletePrice(skus)
     
+    """ Get Front Facing Colors from CSV """
     def getFrontColor(self, filename):
         variations = []
 
@@ -666,6 +659,7 @@ class SFBot:
         print("Variations: ",variations)
         return variations
     
+    """ Update Front Color """
     def updateFrontColor(self, variations):
         try:
             while variations: 
@@ -675,9 +669,11 @@ class SFBot:
                 
                 product = pair[0]
                 colors = [color.lower() for color in pair[1]]
+                first_color = colors[0]
                 
                 print("Product -", product)
                 print("Colors -", colors)
+                print("First Color -", first_color)
                 
                 search = self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")
                 search.send_keys(product)
@@ -757,9 +753,181 @@ class SFBot:
                 
                 done = variations.pop(0)
                 print("Complete pair -", pair)
-        except:
+        except Exception as error:
+            print(error)
             raise
     
+    """ Get Styles of Missing Images """
+    def getMissingImage(self, filename):
+        pass
+    
+    """ Add Missing Images for Styles"""
+    def addMissingImage(self, s, pairs):
+        while pairs:    
+            pair = pairs[0]
+
+            product = pair[0]
+            color = pair[1]
+            style_color = pair[2]
+            
+            color = color.lower()
+            style_color = style_color.replace("-","_")
+            
+            domain = "https://images.lululemon.com/is/image/lululemon/"
+            avail_img = [style_color + '_' + str(i) for i in range(10) if s.get(domain + style_color + '_' + str(i)).status_code == 200]
+            print("Available images -",avail_img)
+            
+            self.searchProducts(product)
+            # search = self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")
+            # search.send_keys(product)
+                        
+            # self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
+            #     .click()
+            
+            self.driver.find_element_by_link_text(product)\
+                .click()
+            
+            try:
+                self.driver.find_element_by_link_text('Lock').click()
+            except:
+                pass
+            print("Unlocked")
+            
+            # Edit Image
+            try:
+                self.driver.find_element(By.ID, "imageSpecificationButton").click()
+            except:
+                button = """
+                    document.querySelector('#imageSpecificationButton').click()
+                """
+                self.driver.execute_script(button)
+            # Product Master
+            try:
+                # self.driver.find_element(By.ID, "extdd-27").click()
+                self.driver.find_element_by_xpath("//span[contains(text(),'product master')]").click()
+            except:
+                productmaster = """
+                    document.querySelector('#extdd-27').click()
+                """
+                self.driver.execute_script(productmaster)
+            
+            if self.selectColor(color):
+                pass
+            # Color is hidden and need to add color back
+            else:
+                self.driver.find_element_by_id('ext-gen98').click()
+                sleep(3)
+                table = self.driver.find_element_by_xpath('//*[@id="ext-gen286"]/div/li/ul')
+                li = table.find_elements_by_class_name('x-tree-node')
+                
+                for i in range(len(li)):
+                    if color in li[i].get_attribute("innerHTML").lower():
+                        li[i].find_element_by_class_name('x-tree-node-cb').click()
+                        self.driver.find_element_by_id('ext-gen230').click()
+                        self.selectColor(color)
+
+                
+            # Use to check if first image already exists to avoid adding first image again
+            checkFirst = True
+            
+            while avail_img:
+                # Gets the rows (hi-res, large, medium, small) and last idx is fill in style color 
+                img = avail_img[0]
+                script = """
+                body = document._getElementsByXPath('//*[@id="ext-gen122"]')
+                body = body[0]
+                node_list = body.querySelectorAll('div.x-tree-node-el.x-tree-node-leaf.x-unselectable');
+                    
+                n = Array.from(node_list)
+                map = n.map(x => x.querySelector('table'))
+                rows = map.filter(x => x != null)
+                
+                return rows
+                """
+                rows = self.driver.execute_script(script)
+                
+                table = [x.get_attribute('innerHTML') for x in rows]
+                content = " ".join(table)
+                soup = BeautifulSoup(content, "html.parser")
+                anchors = soup.find_all(class_="img-mgr-image-node img-mgr-image-node-border x-tree-node-icon x-tree-node-inline-icon")
+                ids = [x.get('id') for x in anchors]
+                
+                if checkFirst:
+                    first_box = self.driver.find_element_by_id(ids[0])
+                    detail_path = self.driver.find_element_by_id('detail_path')
+                
+                    first_box.click()
+
+                    if style_color + '_1' in detail_path.get_attribute('value'):
+                        done = avail_img.pop(0)
+                        checkFirst = False
+                        continue
+                
+                # Need to deal with missing swatch for checkFirst True (0 images) and for those it is not len(id) - 3
+
+                for i in range(len(ids)-3):
+                    el = self.driver.find_element_by_id(ids[i]).get_attribute('outerHTML')
+                    if style_color in el:
+                        continue
+                    else:
+                        self.driver.find_element_by_id(ids[i]).click()
+                        self.driver.find_element_by_id('detail_path').send_keys(img)
+                
+                done = avail_img.pop(0)
+                    
+            try:
+                save = self.driver.find_elements_by_xpath('//*[@id="ext-gen79"]')
+                save.click()
+            except:
+                self.driver.find_element_by_xpath("//button[contains(text(), 'Save')]")\
+                    .click()
+            
+            done = pairs.pop(0)
+
+            self.driver.find_element_by_link_text('Unlock').click()
+            self.driver.find_element_by_link_text('Products').click()
+                
+            print("Complete pair -", pair)
+        
+    """ Select Color to Add Images to """
+    def selectColor(self, color):
+        try:
+            capitalize_color = " ".join([el.capitalize() for el in color.split(" ")])
+            colorpath = "//span[contains(text(),'{}')]".format(capitalize_color)
+            self.driver.find_element_by_xpath(colorpath).click()
+            return True
+        except:
+            try:
+                colorpath = "//span[contains(text(),'{}')]".format(color)
+                self.driver.find_element_by_xpath(colorpath).click()
+                return True
+            except:
+                select_color = """
+                nodes = document.querySelectorAll('.x-tree-node');
+                nodes_list = Array.from(nodes);
+                nodes_list.shift();
+                length = nodes_list.length;
+                found = false
+                for (let i = 1; i < length; i++) {{
+                        node = nodes_list[i].innerText.toLowerCase();
+                        if (node.includes('{}')) {{
+                                nodes_list[i].querySelector('a').click();
+                                found = true
+                        }}
+                        break;
+                }}
+                if (found) {{
+                    return True
+                }} else {{
+                    return ''
+                }}
+                """.format(color)
+                found = self.driver.execute_script(select_color)
+                return bool(found)
+        return False
+
+##### SEO SCRIPTS ##### ##### SEO SCRIPTS ##### ##### SEO SCRIPTS ##### ##### SEO SCRIPTS ##### ##### SEO SCRIPTS ##### ##### SEO SCRIPTS ##### ##### SEO SCRIPTS ##### ##### SEO SCRIPTS ##### 
+
     def hreflang(self):
         
         try: 
@@ -963,172 +1131,8 @@ class SFBot:
           
         return True
     
-    def getMissingImage(self, filename):
-        pass
-    
-    def addMissingImage(self, s, pairs):
-        while pairs:    
-            pair = pairs[0]
-
-            product = pair[0]
-            color = pair[1]
-            style_color = pair[2]
-            
-            color = color.lower()
-            style_color = style_color.replace("-","_")
-            
-            domain = "https://images.lululemon.com/is/image/lululemon/"
-            avail_img = [style_color + '_' + str(i) for i in range(10) if s.get(domain + style_color + '_' + str(i)).status_code == 200]
-            print("Available images -",avail_img)
-            
-            search = self.driver.find_element_by_xpath("//textarea[@name=\"WFSimpleSearch_IDList\"]")
-            search.send_keys(product)
-                        
-            self.driver.find_element_by_xpath('//button[@name=\"findIDList\"]')\
-                .click()
-            
-            self.driver.find_element_by_link_text(product)\
-                .click()
-            
-            try:
-                self.driver.find_element_by_link_text('Lock').click()
-            except:
-                pass
-            print("Unlocked")
-            
-            # Edit Image
-            try:
-                self.driver.find_element(By.ID, "imageSpecificationButton").click()
-            except:
-                button = """
-                    document.querySelector('#imageSpecificationButton').click()
-                """
-                self.driver.execute_script(button)
-            # Product Master
-            try:
-                # self.driver.find_element(By.ID, "extdd-27").click()
-                self.driver.find_element_by_xpath("//span[contains(text(),'product master')]").click()
-            except:
-                productmaster = """
-                    document.querySelector('#extdd-27').click()
-                """
-                self.driver.execute_script(productmaster)
-            
-            if self.selectColor(color):
-                pass
-            else:
-                self.driver.find_element_by_id('ext-gen98').click()
-                
-                table = self.driver.find_element_by_xpath('//*[@id="ext-gen286"]/div/li/ul')
-                pdb.set_trace()
-                li = table.find_elements_by_class_name('x-tree-node')
-                
-                """ ========== HERE!!! ========== """
-                # cannot get the index
-                x = [idx for idx, el in enumerate(li) if color in el.get_attribute('innerHTML').lower()]
-                print(idx)
-                idx = idx.pop()
-                
-            
-
-            checkFirst = True
-            
-            while avail_img:
-                # Gets the rows (hi-res, large, medium, small) and last idx is fill in style color 
-                img = avail_img[0]
-                script = """
-                body = document._getElementsByXPath('//*[@id="ext-gen122"]')
-                body = body[0]
-                node_list = body.querySelectorAll('div.x-tree-node-el.x-tree-node-leaf.x-unselectable');
-                    
-                n = Array.from(node_list)
-                map = n.map(x => x.querySelector('table'))
-                rows = map.filter(x => x != null)
-                
-                return rows
-                """
-                rows = self.driver.execute_script(script)
-                
-                table = [x.get_attribute('innerHTML') for x in rows]
-                content = " ".join(table)
-                soup = BeautifulSoup(content, "html.parser")
-                anchors = soup.find_all(class_="img-mgr-image-node img-mgr-image-node-border x-tree-node-icon x-tree-node-inline-icon")
-                ids = [x.get('id') for x in anchors]
-                
-                if checkFirst:
-                    first_box = self.driver.find_element_by_id(ids[0])
-                    detail_path = self.driver.find_element_by_id('detail_path')
-                
-                    first_box.click()
-
-                    if style_color + '_1' in detail_path.get_attribute('value'):
-                        done = avail_img.pop(0)
-                        checkFirst = False
-                        continue
-
-                for i in range(len(ids)-3):
-                    el = self.driver.find_element_by_id(ids[i]).get_attribute('outerHTML')
-                    if style_color in el:
-                        continue
-                    else:
-                        self.driver.find_element_by_id(ids[i]).click()
-                        self.driver.find_element_by_id('detail_path').send_keys(img)
-                
-                done = avail_img.pop(0)
-                    
-            try:
-                save = self.driver.find_elements_by_xpath('//*[@id="ext-gen79"]')
-                save.click()
-            except:
-                self.driver.find_element_by_xpath("//button[contains(text(), 'Save')]")\
-                    .click()
-            
-            done = pairs.pop(0)
-
-            self.driver.find_element_by_link_text('Unlock').click()
-            self.driver.find_element_by_link_text('Products').click()
-                
-            print("Complete pair -", pair)
         
-    def selectColor(self, color):
-        try:
-            capitalize_color = " ".join([el.capitalize() for el in color.split(" ")])
-            colorpath = "//span[contains(text(),'{}')]".format(capitalize_color)
-            self.driver.find_element_by_xpath(colorpath).click()
-            return True
-        except:
-            try:
-                colorpath = "//span[contains(text(),'{}')]".format(color)
-                self.driver.find_element_by_xpath(colorpath).click()
-                return True
-            except:
-                select_color = """
-                nodes = document.querySelectorAll('.x-tree-node');
-                nodes_list = Array.from(nodes);
-                nodes_list.shift();
-                length = nodes_list.length;
-                found = false
-                for (let i = 1; i < length; i++) {{
-                        node = nodes_list[i].innerText.toLowerCase();
-                        if (node.includes('{}')) {{
-                                nodes_list[i].querySelector('a').click();
-                                found = true
-                        }}
-                        break;
-                }}
-                if (found) {{
-                    return True
-                }} else {{
-                    return ''
-                }}
-                """.format(color)
-                found = self.driver.execute_script(select_color)
-                return bool(found)
-        return False
-        
-        
-        
-""" Clean up Hrefs in CSV """        
+""" Clean up Hrefs in CSV """    
 def getPairs():
     with open ("./csv/seo/old_to_new_hrefs.csv", newline = '', encoding='UTF-8') as csvfile:
         reader = csv.DictReader(csvfile)
@@ -1179,7 +1183,7 @@ def updateHrefCSV():
                  
                 writer.writerow([ID, old, new, edit_link])    
 
-"""======================================================================================================="""
+##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### ##### MAIN SCRIPTS ##### 
 
 """ Creating instance of SFbot 🤖 """
 site = input("Enter Site -").strip()
@@ -1198,7 +1202,7 @@ my_bot = SFBot('hlau2@lululemon.com', pw, site)
 """ Changing Multi Product Names 😊 """
 # names = my_bot.getNames('./csv/names.csv')
 # my_bot.navProducts()
-# my_bot.changeAttribute(names)
+# my_bot.setNames(names)
 
 
 """ Delete Multi Sale Prices 😊 """
