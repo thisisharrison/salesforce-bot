@@ -749,7 +749,9 @@ class SFBot:
                 # self.driver.execute_script(confirm_script)
                                
                 self.driver.find_element_by_link_text('Unlock').click()
-                self.driver.find_element_by_link_text('Products').click()
+                print("Applied")
+                
+                self.driver.find_element_by_xpath('//*[@id="bm-breadcrumb"]/a[3]').click()
                 
                 done = variations.pop(0)
                 print("Complete pair -", pair)
@@ -828,9 +830,9 @@ class SFBot:
 
                 
             # Use to check if first image already exists to avoid adding first image again
-            checkFirst = True
+            firstMissing = True
             
-            while avail_img:
+            while avail_img or firstMissing:
                 # Gets the rows (hi-res, large, medium, small) and last idx is fill in style color 
                 img = avail_img[0]
                 script = """
@@ -852,20 +854,32 @@ class SFBot:
                 anchors = soup.find_all(class_="img-mgr-image-node img-mgr-image-node-border x-tree-node-icon x-tree-node-inline-icon")
                 ids = [x.get('id') for x in anchors]
                 
-                if checkFirst:
+                # Is this a single image issue or no images issue? 
+                # Check First image
+                if firstMissing:
                     first_box = self.driver.find_element_by_id(ids[0])
                     detail_path = self.driver.find_element_by_id('detail_path')
                 
                     first_box.click()
+                    
+                    pdb.set_trace()
 
+                    # There is an image in first box, add from _2, and skip this operation in next round
                     if style_color + '_1' in detail_path.get_attribute('value'):
                         done = avail_img.pop(0)
-                        checkFirst = False
-                        continue
-                
-                # Need to deal with missing swatch for checkFirst True (0 images) and for those it is not len(id) - 3
+                        firstMissing = False
+                        # continue
+                    else:
+                        self.driver.find_element_by_id(ids[-1]).click()
+                        swatch = img.split("_")[1]
+                        if swatch[0:2] == "00":
+                            pass
+                        else:
+                            swatch = swatch[1:]
+                        self.driver.find_element_by_id('detail_path').send_keys(swatch)
+                        firstMissing = False                  
 
-                for i in range(len(ids)-3):
+                for i in range(len(ids)-2):
                     el = self.driver.find_element_by_id(ids[i]).get_attribute('outerHTML')
                     if style_color in el:
                         continue
@@ -885,7 +899,10 @@ class SFBot:
             done = pairs.pop(0)
 
             self.driver.find_element_by_link_text('Unlock').click()
-            self.driver.find_element_by_link_text('Products').click()
+            
+            print("Applied")
+                
+            self.driver.find_element_by_xpath('//*[@id="bm-breadcrumb"]/a[3]').click()
                 
             print("Complete pair -", pair)
         
