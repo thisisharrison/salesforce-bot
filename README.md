@@ -1,5 +1,5 @@
-# CMS Bot
-Bot to automate content management tasks:
+# Salesforce Bot
+Bot to automate merchandising tasks:
 
   - [x] Assign Primary Category in Bulk
   - [x] Assign Sub Categories in Bulk
